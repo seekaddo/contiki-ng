@@ -43,7 +43,7 @@ int main(void) {
 
   // Set port and IP:
   server_addr.sin6_family = AF_INET6;
-  server_addr.sin6_port = htons(5678);
+  server_addr.sin6_port = htons(4432); // 4432 5678
   inet_pton(AF_INET6, "fd00::302:304:506:708", &server_addr.sin6_addr);
 
 

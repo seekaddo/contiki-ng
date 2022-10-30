@@ -56,6 +56,7 @@
 #include "services/shell/serial-shell.h"
 #include "services/simple-energest/simple-energest.h"
 #include "services/tsch-cs/tsch-cs.h"
+#include "quic-ietf.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -147,6 +148,12 @@ main(void)
   serial_shell_init();
   LOG_DBG("With Shell\n");
 #endif /* BUILD_WITH_SHELL */
+
+#ifdef BUILD_WITH_QUIC
+  LOG_DBG("With QUIC-Quant \n");
+  quic_transport_init();
+//#error "disable me now"
+#endif
 
 #if BUILD_WITH_COAP
   coap_engine_init();
