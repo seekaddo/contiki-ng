@@ -390,7 +390,7 @@ void w_init_rand(void)
 {
     //todo:DEE add contiki-ng rand_init here random_init(unsigned short seed);
     /* Seed value is ignored since hardware RNG is used. */
-    // random_init(0x5678); or use clock_time()
+    // random_init(0x5678); or use clock_time() then use it with random_rand()
     // init state for w_rand()
 #if !defined(FUZZING) && !defined(PARTICLE) && !defined(RIOT_VERSION)
     struct timeval now;
@@ -411,6 +411,7 @@ void w_init_rand(void)
 ///
 uint64_t w_rand64(void)
 {
+  // random_rand()
 #if !defined(PARTICLE) && !defined(RIOT_VERSION)
     return kr_rand_r(&w_rand_state);
 #elif defined(PARTICLE)

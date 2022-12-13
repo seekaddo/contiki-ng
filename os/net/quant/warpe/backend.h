@@ -179,8 +179,8 @@ static inline uint16_t __attribute__((always_inline)) pick_local_port(void)
               ->sin6_port _Pragma("clang diagnostic pop")
 
 
-extern void __attribute__((nonnull))
-ip6_config(struct w_ifaddr * const ia, const uint8_t * const mask);
+//extern void __attribute__((nonnull))
+//ip6_config(struct w_ifaddr * const ia, const uint8_t * const mask);
 
 extern uint8_t __attribute__((nonnull))
 contig_mask_len(const int af, const uint8_t * const mask);

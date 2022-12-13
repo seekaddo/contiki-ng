@@ -35,8 +35,9 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <quant/config.h>      // IWYU pragma: export
-#include <warpcore/warpcore.h> // IWYU pragma: export
+#include "config.h"      // IWYU pragma: export
+#include "warpe/warpcore.h"// IWYU pragma: export
+
 
 
 struct w_iov_sq;

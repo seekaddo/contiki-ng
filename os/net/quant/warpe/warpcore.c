@@ -25,14 +25,14 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <arpa/inet.h>
+//#include <arpa/inet.h>
 #include <errno.h>
-#include <netinet/in.h>
+//#include <netinet/in.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
+//#include <sys/socket.h>
 
 #ifndef NDEBUG
 #include <inttypes.h>
@@ -248,7 +248,7 @@ uint_t w_iov_sq_len(const struct w_iov_sq * const q)
 /// @return     Zero on success, @p errno otherwise.
 ///
 
-int w_connect(struct w_sock * const s, const struct sockaddr * const peer)
+int w_connect(struct w_sock * const s, const quic_endpoint_t * const peer)
 {
     if (unlikely(w_connected(s))) {
         warn(ERR, "socket already connected");
@@ -258,13 +258,15 @@ int w_connect(struct w_sock * const s, const struct sockaddr * const peer)
     backend_preconnect(s);
     int e = 0;
     e = backend_connect(s);
+    uip_ipaddr_copy(&s->ws_raddr, &peer->ipaddr);
+    s->ws_rport = peer->port;
 
 
     //if (unlikely(e))
         //memset(&s->ws_rem, 0, sizeof(s->ws_rem));
 
     warn(e ? ERR : DBG, "socket %sconnected to %s:%d %s%s%s", e ? "not " : "",
-         "00:00:1", 988, e ? "(" : "",
+         wi_ntop(&s->ws_raddr, ip_tmp), uip_ntohs(s->ws_rport), e ? "(" : "",
          strerror(e), e ? ")" : "");
 
     return e;
@@ -292,20 +294,23 @@ struct w_sock * w_bind(struct w_engine * const w,
     if (unlikely(s == 0))
         goto fail;
 
-    s->ws_loc =
-        (struct w_sockaddr){.addr = w->ifaddr[addr_idx].addr, .port = port};
+    s->itup.lport = w->b->udp_cn->lport;
+    s->itup.af = s->af_tp;
+    s->itup.scope_id = 0;
+    GetHAddr(&s->itup.laddr);  //todo: get the correct one when running prodection code
+    //s->ws_loc =(struct w_sockaddr){.addr = w->ifaddr[addr_idx].addr, .port = port};
     s->ws_scope = w->ifaddr[addr_idx].scope_id;
     s->w = w;
     sq_init(&s->iv);
 
     if (unlikely(backend_bind(s, opt) != 0)) {
-        warn(ERR, "w_bind failed on %s:%u (%s)", w_ntop(&s->ws_laddr, ip_tmp),
-             bswap16(s->ws_lport), strerror(errno));
+        warn(ERR, "w_bind failed on %s:%u (%s)", wi_ntop(&s->ws_laddr, ip_tmp),
+           uip_ntohs(s->ws_lport), "--");
         goto fail;
     }
 
-    warn(NTE, "socket bound to %s:%d", w_ntop(&s->ws_laddr, ip_tmp),
-         bswap16(s->ws_lport));
+    warn(NTE, "socket bound to %s:%d", wi_ntop(&s->ws_laddr, ip_tmp),
+         uip_ntohs(s->ws_lport));
 
     return s;
 
@@ -366,7 +371,7 @@ uint8_t contig_mask_len(const int af, const uint8_t * const mask)
     return mask_len;
 }
 
-
+#if 0
 const char * w_ntop(const struct w_addr * const addr, char * const dst)
 {
     //todo:DEE use the uIP to string version
@@ -376,8 +381,9 @@ const char * w_ntop(const struct w_addr * const addr, char * const dst)
                                           : (const void *)addr->ip6),
                      dst, IP_STRLEN);
 }
+#endif
 
-
+#if 0
 void ip6_config(struct w_ifaddr * const ia, const uint8_t * const mask)
 {
     ia->prefix = contig_mask_len(ia->addr.af, mask);
@@ -387,6 +393,7 @@ void ip6_config(struct w_ifaddr * const ia, const uint8_t * const mask)
     ip6_or(ia->bcast6, ia->addr.ip6, tmp6);
     ip6_mk_snma(ia->snma6, ia->addr.ip6);
 }
+#endif
 
 
 /// Initialize a warpcore engine on the given interface. Ethernet and IP
@@ -422,7 +429,7 @@ struct w_engine * w_init(const char * const ifname,
     // we mostly loop here because the link may be down
     uint16_t addr_cnt;
     //todo: remove the loop here
-    while ((addr_cnt = backend_addr_cnt(ifname)) == 0) {
+    while ((addr_cnt = backend_addr_cnt()) == 0) {
         // sleep for a bit, so we don't burn the CPU when link is down
         warn(WRN,
              "%s: could not obtain required interface information, retrying",
@@ -435,6 +442,7 @@ struct w_engine * w_init(const char * const ifname,
     ensure((w = calloc(1, sizeof(*w) + addr_cnt * sizeof(w->ifaddr[0]))) != 0,
            "cannot allocate struct w_engine");
     w->addr_cnt = addr_cnt;
+
     if (*ifname) {
         strncpy(w->ifname, ifname, sizeof(w->ifname));
         w->ifname[sizeof(w->ifname) - 1] = 0;
@@ -448,14 +456,19 @@ struct w_engine * w_init(const char * const ifname,
     backend_init(w, (uint32_t)nbufs);
 
 #ifndef NDEBUG
+    // put the link local address here
     warn(NTE, "%s MAC addr %s, MTU %d, speed %" PRIu32 "G", w->ifname,
-         eth_ntoa(&w->mac, eth_tmp, ETH_STRLEN), w->mtu, w->mbps / 1000);
+         "fd00:00"/*eth_ntoa(&w->mac, eth_tmp, ETH_STRLEN)*/, w->mtu, w->mbps / 1000);
+#if  0
     for (uint16_t idx = 0; idx < w->addr_cnt; idx++) {
         struct w_ifaddr * const ia = &w->ifaddr[idx];
+
         warn(NTE, "%s IPv%d addr %s/%u", w->ifname,
-             ia->addr.af == AF_INET ? 4 : 6, w_ntop(&ia->addr, ip_tmp),
+             ia->addr.af == 2 ? 4 : 6, w_ntop(&ia->addr, ip_tmp),
              ia->prefix);
+
     }
+#endif
 #endif
 
 #if !defined(PARTICLE) && !defined(RIOT_VERSION)
@@ -624,7 +637,7 @@ struct w_iov * w_alloc_iov_base(struct w_engine * const w)
     return v;
 }
 
-
+#if 0
 khint_t
 #if defined(__clang__)
     __attribute__((no_sanitize("unsigned-integer-overflow")))
@@ -638,15 +651,16 @@ khint_t
                    fnv1a_32(&tup->local.port, sizeof(tup->local.port)))
                 : 0);
 }
+#endif
 
-
+#if 0
 khint_t w_socktuple_cmp(const struct w_socktuple * const a,
                         const struct w_socktuple * const b)
 {
     return w_sockaddr_cmp(&a->local, &b->local) &&
            w_sockaddr_cmp(&a->remote, &b->remote);
 }
-
+#endif
 
 /// Compare two w_addr structs for equality.
 ///

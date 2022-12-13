@@ -95,8 +95,9 @@ void backend_init(struct w_engine * const w, const uint32_t nbufs)
     w->mtu = UIP_LINK_MTU;
     w->mbps = UINT32_MAX;
     w->b->n = 0;
+    w->b->udp_cn = quic_udp_con();
 
-    struct w_ifaddr * ia = &w->ifaddr[0];
+    struct w_ifaddr * ia = &w->ifaddr[0]; // just dummy
     ia->addr.af = 10; //AF_INET6; // value 10
     ia->scope_id = 0;
 
@@ -105,7 +106,7 @@ void backend_init(struct w_engine * const w, const uint32_t nbufs)
            "cannot alloc %" PRIu32 " * %u buf mem", nbufs, max_buf_len(w));
     ensure((w->bufs = calloc(nbufs, sizeof(*w->bufs))) != 0,
            "cannot alloc bufs");
-    w->backend_name = "contiki-ng-uIP";
+    w->backend_name = "contiki-ng";
 
     for (uint32_t i = 0; i < nbufs; i++) {
         init_iov(w, &w->bufs[i], i);

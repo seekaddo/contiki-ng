@@ -37,7 +37,7 @@ extern "C" {
 
 #define klib_unused
 #undef RIOT_VERSION
-#include "config.h" // IWYU pragma: export
+#include "configw.h" // IWYU pragma: export
 #include "khash.h" // IWYU pragma: export
 #include "plat.h" // IWYU pragma: export
 #include "queue.h" // IWYU pragma: export
@@ -76,7 +76,7 @@ sq_head(w_iov_sq, w_iov); ///< Head of the w_iov tail queue.
 
 
 #define IP6_LEN 16 ///< Length of an IPv4 address in bytes. Sixteen.
-#define IP6_STRLEN INET6_ADDRSTRLEN
+#define IP6_STRLEN 40 //INET6_ADDRSTRLEN
 
 /// Initializer for temporary string for holding an IPv6 address.
 #define ip6_tmp                                                                \
@@ -86,7 +86,7 @@ sq_head(w_iov_sq, w_iov); ///< Head of the w_iov tail queue.
     }
 
 #define IP4_LEN 4 ///< Length of an IPv4 address in bytes. Four.
-#define IP4_STRLEN INET_ADDRSTRLEN
+#define IP4_STRLEN 16 //INET_ADDRSTRLEN
 
 /// Initializer for temporary string for holding an IPv4 address.
 #define ip4_tmp                                                                \
@@ -111,7 +111,7 @@ sq_head(w_iov_sq, w_iov); ///< Head of the w_iov tail queue.
 ///
 /// @return     Length of an IP address of the given family.
 ///
-#define af_len(af) (uint8_t)((af) == AF_INET ? IP4_LEN : IP6_LEN)
+#define af_len(af) (uint8_t)((af) == 2 ? IP4_LEN : IP6_LEN)
 
 
 /// Return the length of an IP header (without options) of address family @p af.
@@ -185,13 +185,14 @@ struct w_socktuple {
 };
 
 
-extern khint_t __attribute__((nonnull))
-w_socktuple_hash(const struct w_socktuple * const tup);
+//extern khint_t __attribute__((nonnull))
+//w_socktuple_hash(const struct w_socktuple * const tup);
 
+#if 0
 extern khint_t __attribute__((nonnull))
 w_socktuple_cmp(const struct w_socktuple * const a,
                 const struct w_socktuple * const b);
-
+#endif
 
 #define ETH_LEN 6
 #define ETH_STRLEN (ETH_LEN * 3 + 1)
@@ -216,6 +217,15 @@ struct eth_addr {
 #endif
 #endif
 
+struct w_socktup
+{
+  uip_ipaddr_t laddr;
+  uip_ipaddr_t raddr;
+  uint16_t lport;
+  uint16_t rport;
+  uint16_t af;
+  uint16_t scope_id;
+};
 
 /// A warpcore backend engine.
 ///
@@ -287,7 +297,10 @@ struct w_sock {
     /// Pointer to generic user data (not used by warpcore.)
     void * data;
 
-    struct w_socktuple tup; ///< Socket four-tuple.
+    //struct w_socktuple tup; ///< Socket four-tuple.
+#ifdef CONTIKI_NG_LE
+    struct w_socktup itup; // current udp_connection
+#endif
     uint16_t af_tp;
     //struct eth_addr dmac;   ///< Destination MAC address.  NOADD
     struct w_sockopt opt;   ///< Socket options.
@@ -302,15 +315,16 @@ struct w_sock {
 };
 
 
-//#define ws_af tup.local.addr.af
+#define ws_af af_tp
 //#define ws_loc tup.local
-//#define ws_laddr tup.local.addr
-//#define ws_lport tup.local.port
+#define ws_laddr itup.laddr
+#define ws_lport itup.lport
 //#define ws_rem tup.remote
-//#define ws_raddr tup.remote.addr
-//#define ws_rport tup.remote.port
-#define ws_scope tup.scope_id
+#define ws_raddr itup.raddr
+#define ws_rport itup.rport
+#define ws_scope itup.scope_id
 
+uint16_t backend_addr_cnt(void);
 
 /// The I/O vector structure that warpcore uses at the center of its API. It is
 /// mostly a pointer to the first UDP payload byte contained in a netmap packet
@@ -490,7 +504,7 @@ w_bind(struct w_engine * const w,
        const struct w_sockopt * const opt);
 
 extern int __attribute__((nonnull))
-w_connect(struct w_sock * const s, const struct sockaddr * const peer);
+w_connect(struct w_sock * const s, const quic_endpoint_t * const peer);
 
 extern void __attribute__((nonnull)) w_close(struct w_sock * const s);
 
@@ -537,8 +551,8 @@ extern void __attribute__((nonnull)) w_free(struct w_iov_sq * const q);
 
 extern void __attribute__((nonnull)) w_free_iov(struct w_iov * const v);
 
-extern const char * __attribute__((nonnull))
-w_ntop(const struct w_addr * const addr, char * const dst);
+//extern const char * __attribute__((nonnull))
+//w_ntop(const struct w_addr * const addr, char * const dst);
 
 extern void w_init_rand(void);
 
