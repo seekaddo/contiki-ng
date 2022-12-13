@@ -200,6 +200,7 @@ set_lladdr(void)
 }
 /*---------------------------------------------------------------------------*/
 #if NETSTACK_CONF_WITH_IPV6
+uip_ipaddr_t uip_hostaddr;
 static void
 set_global_address(void)
 {
@@ -217,6 +218,7 @@ set_global_address(void)
   LOG_INFO("Added global IPv6 address ");
   LOG_INFO_6ADDR(&ipaddr);
   LOG_INFO_("\n");
+  uip_ip6addr_copy(&uip_hostaddr, &ipaddr);
 
   /* set the PREFIX::1 address to the IF */
   uip_ip6addr_copy(&ipaddr, default_prefix);
