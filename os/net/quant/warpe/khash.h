@@ -222,8 +222,8 @@ typedef khint_t khiter_t;
 
 #define __KHASH_IMPL(name, SCOPE, khkey_t, khval_t, kh_is_map, __hash_func,    \
                      __hash_equal)                                             \
-    _Pragma("clang diagnostic push")                                           \
-        _Pragma("clang diagnostic ignored \"-Wunused-function\"")              \
+    /*_Pragma("clang diagnostic push")                                           \
+        _Pragma("clang diagnostic ignored \"-Wunused-function\"")      */        \
             SCOPE kh_##name##_t * kh_init_##name(void)                         \
     {                                                                          \
         return (kh_##name##_t *)kcalloc(1, sizeof(kh_##name##_t));             \
@@ -440,7 +440,7 @@ typedef khint_t khiter_t;
             --h->size;                                                         \
         }                                                                      \
     }                                                                          \
-    _Pragma("clang diagnostic pop")
+   /* _Pragma("clang diagnostic pop")*/
 
 #define KHASH_DECLARE(name, khkey_t, khval_t)                                  \
     __KHASH_TYPE(name, khkey_t, khval_t)                                       \
