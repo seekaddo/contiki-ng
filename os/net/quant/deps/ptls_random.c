@@ -19,6 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+#if 0 // not used one defined in tls.c
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700 /* required for glibc to use getaddrinfo, etc. */
 #endif
@@ -121,3 +122,4 @@ void ptls_minicrypto_random_bytes(void *buf, size_t len)
     cf_hash_drbg_sha256_gen(&ctx, buf, len);
 }
 
+#endif
