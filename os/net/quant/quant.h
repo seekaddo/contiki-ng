@@ -31,7 +31,7 @@
 extern "C" {
 #endif
 
-#include <netinet/in.h>
+//#include <netinet/in.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -112,7 +112,7 @@ extern void __attribute__((nonnull)) q_cleanup(struct w_engine * const w);
 
 extern struct q_conn * __attribute__((nonnull(1, 2, 3)))
 q_connect(struct w_engine * const w,
-          const struct sockaddr * const peer,
+          const quic_endpoint_t * const peer,
           const char * const peer_name,
           struct w_iov_sq * const early_data,
           struct q_stream ** const early_data_stream,

@@ -78,6 +78,7 @@ void w_set_sockopt(struct w_sock * const s, const struct w_sockopt * const opt)
 
 uint16_t backend_addr_cnt(void)
 {
+  //default only 1 ipv6 connection
   return quic_udp_active();
 }
 
@@ -99,6 +100,7 @@ void backend_init(struct w_engine * const w, const uint32_t nbufs)
 
     struct w_ifaddr * ia = &w->ifaddr[0]; // just dummy
     ia->addr.af = 10; //AF_INET6; // value 10
+    memcpy(ia->addr.ip6,uip_hostaddr.u8, sizeof(ia->addr.ip6));
     ia->scope_id = 0;
 
     //todo: Use contiki Memalloca
@@ -198,12 +200,13 @@ void w_tx(struct w_sock * const s, struct w_iov_sq * const o)
       break ;
     }
 
-    if (unlikely(quic_sendto(&v->endpnt, v->buf, v->len) < 0) )
+    if (unlikely(quic_sendto(&v->saddr, v->buf, v->len) < 0) )
       warn(ERR, "sendto returned %d (%s)", errno, strerror(errno));
     v = sq_next(v, next);
   };
 }
 
+extern uint32_t syncNewData;
 
 /// Return any new data that has been received on a socket by appending it to
 /// the w_iov tail queue @p i. The tail queue must eventually be returned to
@@ -215,24 +218,23 @@ void w_tx(struct w_sock * const s, struct w_iov_sq * const o)
 ///
 void w_rx(struct w_sock * const s, struct w_iov_sq * const i)
 {
-  struct w_iov * v = w_alloc_iov(s->w, s->af_tp, 0, 0);
-  if (unlikely(v == 0))
-    return;
+  do {
+    struct w_iov *v = w_alloc_iov(s->w, s->af_tp, 0, 0);
+    if (unlikely(v == 0))
+      return;
 
-  //struct sockaddr_storage sa;
-  //socklen_t sa_len = sizeof(sa);
-  v->len = recvfr(v->buf, v->len);
+    v->len = recvfr(v->buf, v->len);
 
-  if (likely(v->len > 0)) {
-    //v->renpt = sa_port(&sa);
-    set_endpoint(&v->endpnt);
-    v->ttl = get_ttl();
-    //w_to_waddr(&v->wv_addr, (struct sockaddr *)&sa); // server address wv_addr
-    sq_insert_tail(i, v, next);
-  } else
-  {
-    w_free_iov(v);
-  }
+    if (likely(v->len > 0)) {
+      // v->renpt = sa_port(&sa);
+      set_endpoint(&v->saddr);
+      v->ttl = get_ttl();
+      // w_to_waddr(&v->wv_addr, (struct sockaddr *)&sa); // server address wv_addr
+      sq_insert_tail(i, v, next);
+    } else {
+      w_free_iov(v);
+    }
+  } while (syncNewData != 0);
 }
 
 
@@ -251,10 +253,10 @@ void w_nic_tx(struct w_engine * const w __attribute__((unused))) {}
 ///
 /// @return     Whether any data is ready for reading.
 ///
-extern uint8_t syncNewData;
+
 bool w_nic_rx(struct w_engine * const w, const int64_t nsec)
 {
-    return syncNewData;
+    return syncNewData > 0;
 }
 
 

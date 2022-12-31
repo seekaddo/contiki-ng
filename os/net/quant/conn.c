@@ -433,7 +433,10 @@ tx_rtry(struct q_conn * const c)
 
     mx->txed = true;
     mx->udp_len = xv->len = (uint16_t)(pos - xv->buf);
-    xv->saddr = c->peer;
+    //xv->saddr = c->peer;
+    to_endpoint(xv->saddr,c->peer);
+    //memcpy(xv->saddr.ipaddr.u8,c->peer.addr.ip6, sizeof(xv->saddr.ipaddr.u8));
+    //xv->saddr.port = c->peer.port;
 #ifndef NO_ECN
     xv->flags = likely(c->sockopt.enable_ecn) ? ECN_ECT0 : ECN_NOT;
 #endif
@@ -1016,7 +1019,7 @@ static bool __attribute__((nonnull)) rx_pkt(const struct w_sock * const ws
         c->vers = m->hdr.vers;
 
         // TODO: remove this interop hack eventually
-        if (bswap16(ws->ws_lport) == 4434 || ped(c->w)->conf.force_retry) {
+        if (uip_ntohs(ws->ws_lport) == 4434 || ped(c->w)->conf.force_retry) {
             if (m->hdr.type == LH_INIT && tok_len) {
                 if (verify_rtry_tok(c, tok, tok_len) == false) {
                     warn(ERR, "retry token verification failed");
@@ -1360,13 +1363,18 @@ static void __attribute__((nonnull))
 
                     warn(NTE,
                          "new serv conn on port %u from %s%s%s:%u w/cid=%s",
-                         bswap16(ws->ws_lport), v->wv_af == AF_INET6 ? "[" : "",
+                         uip_ntohs(ws->ws_lport), v->wv_af == AF_INET6 ? "[" : "",
                          wi_ntop(&v->wv_addr, ip_tmp),
                          v->wv_af == AF_INET6 ? "]" : "", v->saddr.port,
                          cid_str(&m->hdr.dcid));
 
+                    struct w_sockaddr p;
+                    // only for contiki-NG
+                    p.port = v->saddr.port;
+                    memcpy(p.addr.ip6,v->saddr.ipaddr.u8,sizeof(p.addr.ip6));
+
                     c = new_conn(w_engine(ws), UINT16_MAX, &m->hdr.scid,
-                                 &m->hdr.dcid, &v->saddr, 0, ws->ws_lport, ws,
+                                 &m->hdr.dcid, &p, 0, ws->ws_lport, ws,
                                  &(struct q_conn_conf){.version = m->hdr.vers});
                     if (likely(c))
                         init_tls(c, 0, 0);
@@ -1500,7 +1508,8 @@ static void __attribute__((nonnull))
             if (unlikely(outer_dcid.len) &&
                 cid_cmp(&outer_dcid, &m->hdr.dcid) != 0) {
                 log_pkt("RX", v, tok, tok_len, rit);
-                mk_cid_str(ERR, &outer_dcid, outer_dcid_str);
+                struct cid *ptr_outr = &outer_dcid;
+                mk_cid_str(ERR,ptr_outr, outer_dcid_str);
                 mk_cid_str(ERR, &m->hdr.dcid, dcid_str);
                 warn(ERR,
                      "outer dcid %s != inner dcid %s during decoalescing, "
@@ -2101,7 +2110,7 @@ struct q_conn * new_conn(struct w_engine * const w,
     if (c->scid) {
         // FIXME: first connection sets the type for all future connections
         warn(DBG, "%s conn %s on port %u created", conn_type(c),
-             cid_str(c->scid), bswap16(c->sock->ws_lport));
+             cid_str(c->scid), uip_ntohs(c->sock->ws_lport));
         if (ped(w)->conf.qlog_dir)
             qlog_init(c);
     }

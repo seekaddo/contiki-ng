@@ -63,7 +63,7 @@ void log_pkt(const char * const dir,
              const uint8_t * const rit)
 {
     char ip[IP_STRLEN];
-    wi_ntop(&v->saddr.addr, ip);
+    wi_ntop(&v->saddr.ipaddr, ip);
     const uint16_t port = uip_ntohs(v->saddr.port);
     const struct pkt_meta * const m = &meta(v);
     const char * const pts = pkt_type_str(m->hdr.flags, &m->hdr.vers);
@@ -535,11 +535,12 @@ bool enc_pkt(struct q_stream * const s,
     }
 
     m->hdr.hdr_len = (uint16_t)(pos - v->buf);
-    v->saddr =
+    //v->saddr =
+    to_endpoint(v->saddr ,
 #ifndef NO_MIGRATION
         unlikely(c->tx_path_chlg) ? c->migr_peer :
 #endif
-                                  c->peer;
+                                  c->peer);
 
 #ifndef NO_ECN
     // track the flags manually, since warpcore sets them on the xv and it'd

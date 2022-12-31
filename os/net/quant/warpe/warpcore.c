@@ -294,9 +294,9 @@ struct w_sock * w_bind(struct w_engine * const w,
     if (unlikely(s == 0))
         goto fail;
 
-    s->itup.lport = w->b->udp_cn->lport;
+    s->ws_lport = port; //w->b->udp_cn->lport;
     s->itup.af = s->af_tp;
-    s->itup.scope_id = 0;
+    s->ws_scope = 0;
     GetHAddr(&s->itup.laddr);  //todo: get the correct one when running prodection code
     //s->ws_loc =(struct w_sockaddr){.addr = w->ifaddr[addr_idx].addr, .port = port};
     s->ws_scope = w->ifaddr[addr_idx].scope_id;
@@ -684,9 +684,9 @@ bool w_addr_cmp(const struct w_addr * const a, const struct w_addr * const b)
 /// @return     True if equal, false otherwise.
 ///
 bool w_sockaddr_cmp(const struct w_sockaddr * const a,
-                    const struct w_sockaddr * const b)
+                    const quic_endpoint_t * const b)
 {
-    return a->port == b->port && w_addr_cmp(&a->addr, &b->addr);
+    return a->port == b->port && ip6_eql(&a->addr.ip6, &b->ipaddr.u8);
 }
 
 
@@ -697,6 +697,7 @@ bool w_sockaddr_cmp(const struct w_sockaddr * const a,
 ///
 /// @return     True if the initialization succeeded.
 ///
+#if 0
 bool w_to_waddr(struct w_addr * const wa, const struct sockaddr * const sa)
 {
     if (unlikely(sa->sa_family != AF_INET && sa->sa_family != AF_INET6))
@@ -713,6 +714,7 @@ bool w_to_waddr(struct w_addr * const wa, const struct sockaddr * const sa)
                sizeof(wa->ip6));
     return true;
 }
+#endif
 
 
 void to_sockaddr(struct sockaddr * const sa,

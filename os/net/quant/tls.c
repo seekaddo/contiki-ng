@@ -716,11 +716,12 @@ static int chk_tp(ptls_t * tls __attribute__((unused)),
                                      srt_str(dcid->srt));
 #endif
             }
-
+            quic_endpoint_t p; // contiki-ng only
+            memcpy(p.ipaddr.u8,pa6->addr.ip6,sizeof(p.ipaddr.u8));
             warn(INF,
                  "\tpreferred_address = IPv4=%s:%u IPv6=[%s]:%u cid=%s srt=%s",
-                 wi_ntop(&pa4->addr, ip_tmp), uip_ntohs(pa4->port),
-                 wi_ntop(&pa6->addr, ip_tmp), uip_ntohs(pa6->port),
+                 "0:000:0"/*w_ntop(&pa4->addr, ip_tmp) contiki-ng only*/, uip_ntohs(pa4->port),
+                 wi_ntop(&p.ipaddr, ip_tmp), uip_ntohs(pa6->port),
                  cid_str(&pa->cid), srt_str(srt));
             break;
 
@@ -760,7 +761,8 @@ static int chk_tp(ptls_t * tls __attribute__((unused)),
                          "no original_destination_connection_id tp");
 
     if (cid_cmp(&ini_scid, c->dcid)) {
-        mk_cid_str(ERR, &ini_scid, ini_scid_str);
+        struct cid *ptr_ini =  &ini_scid; // contiki-ng only
+        mk_cid_str(ERR, ptr_ini, ini_scid_str);
         mk_cid_str(ERR, c->dcid, dcid_str);
         warn(ERR, "initial_source_connection_id mismatch, %s != %s",
              ini_scid_str, dcid_str);

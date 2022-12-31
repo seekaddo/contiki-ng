@@ -12,7 +12,7 @@
 #include <string.h>
 #include "contiki.h"
 #include "quic-ietf.h"
-
+#include "quant/quant.h"
 /* Log configuration */
 //#include "sys/log.h"
 #include "quic-log.h"
@@ -42,6 +42,21 @@ udp_rx_callback(const quic_endpoint_t *src,
 }
 
 
+static void
+quic_rx_callback(const quic_endpoint_t *src,
+                uint8_t *payload, uint16_t payload_length)
+{
+  LOG_INFO("Received request '%.*s' from \n", payload_length, (char *) payload);
+  //LOG_INFO_6ADDR(src);
+  //LOG_INFO_(" Port: %u \n", sender_port);
+  /* send back the same string to the client as an echo reply */
+  LOG_INFO("Sending response.\n");
+  (void ) src;
+  quic_transx("/index.html","fe80::fb8c:3998:452a:d27e",quic_rx_callback);
+
+}
+
+
 PROCESS(er_example_server, "QUIC Example Server");
 AUTOSTART_PROCESSES(&er_example_server);
 
@@ -54,6 +69,7 @@ PROCESS_THREAD(er_example_server, ev, data)
   LOG_INFO("Starting QUIC Example Server\n");
   quic_register(&udp_conn,UDP_SERVER_PORT, udp_rx_callback);
 
+  quic_transx("/index.html","fe80::fb8c:3998:452a:d27e",quic_rx_callback);
 
 
   /* Define application-specific events here. */

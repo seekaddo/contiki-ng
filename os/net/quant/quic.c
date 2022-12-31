@@ -26,11 +26,11 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include <inttypes.h>
-#include <netinet/in.h>
+//#include <netinet/in.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/socket.h>
+//#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -219,7 +219,7 @@ static void __attribute__((nonnull)) mark_fin(struct w_iov_sq * const q)
 
 
 struct q_conn * q_connect(struct w_engine * const w,
-                          const struct sockaddr * const peer,
+                          const quic_endpoint_t * const peer,
                           const char * const peer_name,
                           struct w_iov_sq * const early_data,
                           struct q_stream ** const early_data_stream,
@@ -232,6 +232,23 @@ struct q_conn * q_connect(struct w_engine * const w,
 
     //todo:dEE change this to the contiki-ng version and skip this steps
     uint16_t idx = UINT16_MAX;
+
+#ifdef CONTIKI_NG_LE
+
+    if (w->have_ip6)
+    {
+      idx = 0;
+      p.port = peer->port;
+      p.addr.af = 10; // AF_INET6
+      memcpy(p.addr.ip6,peer->ipaddr.u8,sizeof(p.addr.ip6));
+
+    }
+
+    if (unlikely(idx == UINT16_MAX)) {
+      warn(CRT, "address family error");
+      return 0;
+    }
+#else
     if (peer->sa_family == AF_INET && w->have_ip4) {
         idx = w->addr4_pos;
         p.port = ((const struct sockaddr_in *)(const void *)peer)->sin_port;
@@ -254,6 +271,7 @@ struct q_conn * q_connect(struct w_engine * const w,
         warn(CRT, "address family error");
         return 0;
     }
+#endif
 
     struct q_conn * const c = new_conn(w, idx, 0, 0, &p, peer_name, 0, 0, conf);
 
@@ -267,7 +285,7 @@ struct q_conn * q_connect(struct w_engine * const w,
     warn(WRN,
          "new %u-RTT %s conn %s to %s%s%s:%u, %" PRIu " byte%s queued for TX",
          c->try_0rtt ? 0 : 1, conn_type(c), cid_str(c->scid),
-         p.addr.af == AF_INET6 ? "[" : "", wi_ntop(&p.addr, ip_tmp),
+         p.addr.af == AF_INET6 ? "[" : "", wi_ntop(&peer->ipaddr, ip_tmp),
          p.addr.af == AF_INET6 ? "]" : "", uip_ntohs(p.port),
          early_data ? w_iov_sq_len(early_data) : 0,
          plural(early_data ? w_iov_sq_len(early_data) : 0));
@@ -292,7 +310,7 @@ struct q_conn * q_connect(struct w_engine * const w,
 
     warn(DBG, "waiting for connect on %s conn %s to %s%s%s:%u", conn_type(c),
          cid_str(c->scid), p.addr.af == AF_INET6 ? "[" : "",
-         wi_ntop(&p.addr, ip_tmp), p.addr.af == AF_INET6 ? "]" : "",
+         wi_ntop(&peer->ipaddr, ip_tmp), p.addr.af == AF_INET6 ? "]" : "",
          uip_ntohs(p.port));
     conn_to_state(c, conn_opng);
     loop_run(w, (func_ptr)q_connect, c, 0);
@@ -457,9 +475,9 @@ struct q_conn * q_bind(struct w_engine * const w
         new_conn(w, addr_idx, 0, 0, 0, 0, bswap16(port), 0, 0);
     if (likely(c)) {
         warn(INF, "bound %s socket to %s%s%s:%u", conn_type(c),
-             c->sock->ws_laddr.af == AF_INET6 ? "[" : "",
-             w_ntop(&c->sock->ws_laddr, ip_tmp),
-             c->sock->ws_laddr.af == AF_INET6 ? "]" : "", port);
+             c->sock->ws_af == AF_INET6 ? "[" : "",
+             "00::0:0"/*w_ntop(&c->sock->ws_laddr, ip_tmp) contiki-ng only*/,
+             c->sock->ws_af == AF_INET6 ? "]" : "", port);
         sl_insert_head(&c_embr, c, node_embr);
     }
     return c;
@@ -693,10 +711,10 @@ void q_close(struct q_conn * const c,
 {
     warn(WRN, "closing %s conn %s on %s%s%s:%u w/err %s0x%" PRIx "%s%s%s" NRM,
          conn_type(c), cid_str(c->scid),
-         c->sock->ws_laddr.af == AF_INET6 ? "[" : "",
-         w_ntop(&c->sock->ws_laddr, ip_tmp),
+         c->sock->ws_af == AF_INET6 ? "[" : "",
+         wi_ntop(&c->sock->ws_laddr, ip_tmp),
          c->sock->ws_laf == AF_INET6 ? "]" : "",
-         bswap16(c->sock->ws_lport), code ? RED : NRM, code, reason ? " (" : "",
+       uip_ntohs(c->sock->ws_lport), code ? RED : NRM, code, reason ? " (" : "",
          reason ? reason : "", reason ? ")" : "");
 
     c->err_code = code;

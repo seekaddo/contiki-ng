@@ -23,12 +23,15 @@
 #include "quic-endpoint.h"
 #include "quic-transport.h"
 #include <assert.h>
+#include "queue.h"
 
 /* Log configuration */
 //#include "quic-log.h"
 #include "sys/log.h"
 #define LOG_MODULE "quic-eng"
 #define LOG_LEVEL  LOG_LEVEL_MAIN
+
+#include <quant/quant.h>
 
 
 /* sanity check for configured values */
@@ -37,15 +40,39 @@
 #endif
 
 #define SERVER_LISTEN_PORT        UIP_HTONS(QUIC_DEFAULT_PORT)
+#define QUIC_TEST 1
+
+struct pkt_entry {
+  sl_entry(pkt_entry) next;
+  uint8_t * buf;
+  uint32_t len;
+};
+
+static sl_head(pkt_list, pkt_entry) sl = sl_head_initializer(sl);
+
+static void free_se(struct pkt_entry * const se)
+{
+  free(se->buf);
+  free(se);
+}
+
+static void free_sl_head(void)
+{
+  struct pkt_entry * const se = sl_first(&sl);
+  sl_remove_head(&sl, next);
+  free_se(se);
+}
 
 
 PROCESS(quic_engine, "QUIC Engine");
 
+void quic_transx_init(void);
 static struct uip_udp_conn *udp_conn = NULL;
 static quic_udp_callback qreceive = NULL;
+const quic_endpoint_t * get_src_endpoint(uint8_t secure);
 //static uint8_t syncReq = 0;
 
-uint8_t syncNewData = 0;
+uint32_t syncNewData = 0;
 
 
 uint8_t quic_udp_active()
@@ -123,7 +150,7 @@ quic_endpoint_snprint(char *buf, size_t size, const quic_endpoint_t *ep)
 /*---------------------------------------------------------------------------*/
 
 /*---------------------------------------------------------------------------*/
-static const quic_endpoint_t *
+const quic_endpoint_t *
 get_src_endpoint(uint8_t secure)
 {
   static quic_endpoint_t src;
@@ -156,10 +183,10 @@ quic_endpoint_is_connected(const quic_endpoint_t *ep)
 {
 #ifndef CONTIKI_TARGET_NATIVE
   //todo: remove this later from production code and use BLE version
-  if(!uip_is_addr_linklocal(&ep->ipaddr)
+/*  if(!uip_is_addr_linklocal(&ep->ipaddr)
     && NETSTACK_ROUTING.node_is_reachable() == 0) {
     return 0;
-  }
+  }*/
 #endif
 
   /* Assume connected on native */
@@ -198,6 +225,7 @@ void
 quic_transport_init(void)
 {
   process_start(&quic_engine, NULL);
+  quic_transx_init();
   //todo: start another process to handle all quic request
   // A pointer to the struct data is needed to pass the whole request
 
@@ -220,15 +248,21 @@ uint32_t recvfr(uint8_t *buf, uint32_t len)
   if(syncNewData == 0)
     return 0;
 
+  if(sl_empty(&sl) != false)
+    return 0;
+
+  struct pkt_entry * const se = sl_first(&sl);
+
   uint32_t akLen = uip_datalen();
-  if(uip_datalen() > len)
+  if(se->len> len)
   {
     LOG_WARN("------Not Enough buffer provided by backend");
-    akLen = uip_datalen(); //
+    akLen = se->len; //
   }
 
-  memcpy(buf,quic_databuf(),akLen);
-  syncNewData = 0;
+  memcpy(buf,se->buf,se->len);
+  free_sl_head();
+  syncNewData  = (syncNewData == 1) ? 0 : (syncNewData-1);
   return akLen;
 }
 
@@ -239,7 +273,21 @@ process_data(void)
 
   //todo:
   //set active newdata on
-  syncNewData = 1;
+
+#ifdef QUIC_TEST
+
+  // add to stream list
+  struct pkt_entry * se = calloc(1, sizeof(*se));
+  ensure(se, "calloc failed");
+  se->buf = calloc(1, uip_datalen());
+  se->len = uip_datalen();
+  ensure(se->buf, "calloc failed");
+  memcpy(se->buf,quic_databuf(),uip_datalen());
+  sl_insert_head(&sl, se, next);
+  syncNewData = syncNewData +1;
+  LOG_INFO("  Received Pkt Length: %u ttl: %d \n", uip_datalen(), udp_conn->ttl);
+
+#else
 
   LOG_INFO("receiving UDP datagram from [");
   LOG_INFO_6ADDR(&UIP_IP_BUF->srcipaddr);
@@ -257,9 +305,10 @@ process_data(void)
   {
     LOG_INFO("No Receive Handler registered. drop quic packet\n");
   }
+#endif
 
 }
-const char * wi_ntop(uip_ipaddr_t *add,  char * dest)
+const char * wi_ntop(const uip_ipaddr_t *add,  char * dest)
 {
   uiplib_ipaddr_snprint(dest, 40, add);
   return dest;
@@ -283,7 +332,7 @@ quic_sendto(const quic_endpoint_t *ep, const uint8_t *data, uint16_t length)
 
 
   uip_udp_packet_sendto(udp_conn, data, length, &ep->ipaddr, ep->port);
-  LOG_INFO("sent to ");
+  LOG_INFO("sent UDP msg of  ");
   //LOG_WARN_QUIC_EP(ep);
   LOG_INFO_(" %u bytes\n", length);
   return length;
@@ -294,6 +343,9 @@ PROCESS_THREAD(quic_engine, ev, data)
   PROCESS_BEGIN();
   //assert(qreceive != NULL);
 
+  //todo: use the pingFrame or the udp ping to ping a remote server
+  //  when successful then bind this server using the BLE negotiated prefix and port
+
   /* new connection with remote host */
   udp_conn = udp_new(NULL, 0, NULL);
   udp_bind(udp_conn, SERVER_LISTEN_PORT);
@@ -302,6 +354,7 @@ PROCESS_THREAD(quic_engine, ev, data)
   LOG_INFO("  Client uIP addr: %s \n", buf);
   LOG_INFO("QUIC Listening on port %u\n", uip_ntohs(udp_conn->lport));
   LOG_INFO("QUIC ipv6 MTU: %d ttl:%d \n", UIP_LINK_MTU, udp_conn->ttl);
+  syncNewData = 0;
 
 
   while(1) {

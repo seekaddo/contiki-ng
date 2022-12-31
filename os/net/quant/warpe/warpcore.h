@@ -203,11 +203,11 @@ w_socktuple_cmp(const struct w_socktuple * const a,
         ""                                                                     \
     }
 
-
+#if 0
 struct eth_addr {
     uint8_t addr[ETH_LEN];
 };
-
+#endif
 
 #ifdef RIOT_VERSION
 #ifdef CONFIG_NETIF_NAMELENMAX
@@ -235,7 +235,7 @@ struct w_engine {
     struct w_backend * b; ///< Backend.
     uint16_t mtu;         ///< MTU of this interface.
     uint32_t mbps;        ///< Link speed of this interface in Mb/s.
-    struct eth_addr mac;  ///< Local Ethernet MAC address of the interface.
+    //struct eth_addr mac;  ///< Local Ethernet MAC address of the interface.
     // struct eth_addr rip;  ///< Ethernet MAC address of the next-hop router.
 
     struct w_iov_sq iov; ///< Tail queue of w_iov buffers available.
@@ -319,6 +319,7 @@ struct w_sock {
 //#define ws_loc tup.local
 #define ws_laddr itup.laddr
 #define ws_lport itup.lport
+#define ws_laf   ws_af
 //#define ws_rem tup.remote
 #define ws_raddr itup.raddr
 #define ws_rport itup.rport
@@ -345,7 +346,7 @@ struct w_iov {
     /// Sender IP address and port on RX. Destination IP address and port on TX
     /// on a disconnected w_sock. Ignored on TX on a connected w_sock.
     //struct w_sockaddr saddr;
-    quic_endpoint_t endpnt; // endpoint to rx (server address -- remote addrss)
+    quic_endpoint_t saddr; // endpoint to rx (server address -- remote addrss)
 
     uint8_t * base;       ///< Absolute start of buffer.
     uint8_t * buf;        ///< Start of payload data.
@@ -372,9 +373,13 @@ struct w_iov {
 //#define wv_ip6 saddr.addr.ip6
 #define wv_addr saddr.addr
 #endif
-#define wv_port endpnt.port
-#define wv_af   endpnt.af
-#define wv_addr endpnt.ipaddr
+#define wv_port saddr.port
+#define wv_af   saddr.af
+#define wv_addr saddr.ipaddr
+
+#define to_endpoint(a,b) \
+  memcpy((a).ipaddr.u8,(b).addr.ip6, sizeof((a).ipaddr.u8)); \
+  (a).port = (b).port;
 
 /// Return the index of w_iov @p v.
 ///
@@ -382,6 +387,7 @@ struct w_iov {
 ///
 /// @return     Index between 0-nfbus.
 ///
+
 static inline uint32_t __attribute__((nonnull, no_instrument_function))
 w_iov_idx(const struct w_iov * const v)
 {
@@ -469,7 +475,7 @@ w_connected(const struct w_sock * const s)
     return quic_udp_active();
 }
 
-
+#if 0
 static inline bool __attribute__((nonnull))
 w_is_linklocal(const struct w_addr * const a)
 {
@@ -478,7 +484,7 @@ w_is_linklocal(const struct w_addr * const a)
     else
         return a->ip6[0] == 0xfe && (a->ip6[1] & 0xc0) == 0x80;
 }
-
+#endif
 
 static inline bool __attribute__((nonnull))
 w_is_private(const struct w_addr * const a)
@@ -569,7 +575,7 @@ w_addr_cmp(const struct w_addr * const a, const struct w_addr * const b);
 
 extern bool __attribute__((nonnull))
 w_sockaddr_cmp(const struct w_sockaddr * const a,
-               const struct w_sockaddr * const b);
+               const quic_endpoint_t * const b);
 
 extern void __attribute__((nonnull))
 w_set_sockopt(struct w_sock * const s, const struct w_sockopt * const opt);
@@ -578,8 +584,8 @@ extern uint64_t w_now(const clockid_t clock);
 
 extern void w_nanosleep(const uint64_t ns);
 
-extern bool __attribute__((nonnull))
-w_to_waddr(struct w_addr * const wa, const struct sockaddr * const sa);
+//extern bool __attribute__((nonnull))
+//w_to_waddr(struct w_addr * const wa, const struct sockaddr * const sa);
 
 #define RIOT_VERSION
 
