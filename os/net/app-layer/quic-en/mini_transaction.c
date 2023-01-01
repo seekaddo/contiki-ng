@@ -3,11 +3,6 @@
 //
 
 
-#include <errno.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <limits.h>
-#include <netdb.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -39,6 +34,7 @@ typedef struct {
   const char *  req;
   const char *  peer;
   struct q_conn *  c;
+  struct q_stream * s ;
   quic_endpoint_t  p_addr;
   uint16_t qrcnt;
   uint16_t clean;
@@ -52,7 +48,11 @@ PROCESS(quic_etranx, "QUIC Transac");
 static const struct q_conf qc = {0, "flash", 0, 0,
                                  0, 0, 0, 20, false};
 static qmcon tranx_conn;
+static struct w_iov_sq o = w_iov_sq_initializer(o);
 
+
+static struct etimer timer;
+#define CLIENT_SEND_INTERVAL      (10 * 1)
 
 void quic_transx(const char * const req, const char * const peer, quic_udp_callback callback )
 {
@@ -73,25 +73,25 @@ PROCESS_THREAD(quic_etranx, ev, data)
 {
   PROCESS_BEGIN();
   LOG_INFO("  QUIC Transx Started  \n");
-  //Wait until we have all contiki-ng net stuffs done with uIP
-  PROCESS_WAIT_EVENT_UNTIL(quic_udp_active());
 
-  tranx_conn.w = q_init("uIP", &qc);
-  PROCESS_WAIT_EVENT_UNTIL(tranx_conn.qrcnt); // for client request
+  do {
+    etimer_set(&timer, 2);
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+    LOG_INFO("  QUIC wait \n");
+  } while(!quic_udp_active());
 
-  LOG_INFO("quic_etranx:  q_init done and ready for quic conn \n");
-  struct w_iov_sq o = w_iov_sq_initializer(o);
-
-  struct q_stream * s = 0;
-
-  //uint8_t cnkt = 4;
+  etimer_set(&timer, 1);
 
   while(1) {
     PROCESS_YIELD();
-    uint8_t qwait = 0;
+    if((ev == PROCESS_EVENT_TIMER) && (data == &timer)) {
+      etimer_set(&timer, CLIENT_SEND_INTERVAL);
+    }
+    static uint8_t qwait = 0;
 
 
-    if (tranx_conn.c == NULL) {
+    if (tranx_conn.c == NULL) { // connection /handshake handler
+      LOG_INFO("q_connect: connection /handshake handler init \n");
       q_alloc(tranx_conn.w, &o, 0, AF_INT6, 512); // af family is ipv6
       struct w_iov * const v = sq_first(&o);
       v->len = sprintf((char *)v->buf, "GET %s\r\n", tranx_conn.req);
@@ -100,17 +100,18 @@ PROCESS_THREAD(quic_etranx, ev, data)
           30, 0, 0, 0, 0,
           0, 0, 0, 0,
           0, 0xff000000 + DRAFT_VERSION};
-      tranx_conn.c  = q_connect(tranx_conn.w, &tranx_conn.p_addr, tranx_conn.peer, &o, &s, true,
+      LOG_INFO("quic_etranx:  new transaction \n");
+      tranx_conn.c  = q_connect(tranx_conn.w, &tranx_conn.p_addr, tranx_conn.peer, &o, &tranx_conn.s, true,
                     "hq-" DRAFT_VERSION_STRING, &qcc);
 
       qwait = 1; // wait for response
     }
 
-    if (tranx_conn.c ) {
+    if (tranx_conn.c ) { // streams handler
       if(qwait) {
         warn(DBG, "==============Get Response================================");
         struct w_iov_sq i = w_iov_sq_initializer(i);
-        q_read_stream(s, &i, true);
+        q_read_stream(tranx_conn.s, &i, true);
         const uint16_t len = w_iov_sq_len(&i);
         warn(DBG, "retrieved %" PRIu32 " bytes", len);
         struct w_iov *const sv = sq_first(&i);
@@ -121,17 +122,17 @@ PROCESS_THREAD(quic_etranx, ev, data)
         warn(DBG, "==============Get Done================================");
         qwait = 0;
         q_free(&i);
-        q_free_stream(s);
+        q_free_stream(tranx_conn.s);
       }
 
       if(tranx_conn.qrcnt) {
         // todo: here we sent a fresh new request, Using old connection but new stream
-        s = q_rsv_stream(tranx_conn.c, true); // request a new stream
+        tranx_conn.s = q_rsv_stream(tranx_conn.c, true); // request a new stream
         q_alloc(tranx_conn.w, &o, 0, AF_INT6,
                 512); // allocate memory for the stream
         struct w_iov *const vv = sq_first(&o);
         vv->len = sprintf((char *)vv->buf, "GET %s\r\n", tranx_conn.req);
-        q_write(s, &o, true); // send new request on the same stream 0
+        q_write(tranx_conn.s, &o, true); // send new request on the same stream 0
         qwait = 1; // wait for response
       }
 
@@ -159,6 +160,16 @@ void quic_transx_init(void)
   process_start(&quic_etranx, NULL);
 
 }
+void quic_init_Wegine(void)
+{
+  LOG_INFO("q_init: init wengine \n");
+  tranx_conn.w = q_init("uIP", &qc);
+
+  LOG_INFO("quic_etranx:  q_init done and ready for quic conn \n");
+  tranx_conn.c = 0;
+
+}
+
 
 
 

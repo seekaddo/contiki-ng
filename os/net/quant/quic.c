@@ -229,7 +229,6 @@ struct q_conn * q_connect(struct w_engine * const w,
 {
     // make new connection
     struct w_sockaddr p;
-
     //todo:dEE change this to the contiki-ng version and skip this steps
     uint16_t idx = UINT16_MAX;
 

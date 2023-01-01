@@ -67,6 +67,8 @@ static void free_sl_head(void)
 PROCESS(quic_engine, "QUIC Engine");
 
 void quic_transx_init(void);
+void quic_init_Wegine(void);
+
 static struct uip_udp_conn *udp_conn = NULL;
 static quic_udp_callback qreceive = NULL;
 const quic_endpoint_t * get_src_endpoint(uint8_t secure);
@@ -335,6 +337,7 @@ quic_sendto(const quic_endpoint_t *ep, const uint8_t *data, uint16_t length)
   LOG_INFO("sent UDP msg of  ");
   //LOG_WARN_QUIC_EP(ep);
   LOG_INFO_(" %u bytes\n", length);
+  LOG_INFO("QUIC sending on port %u\n", uip_ntohs(ep->port));
   return length;
 }
 /*---------------------------------------------------------------------------*/
@@ -355,6 +358,7 @@ PROCESS_THREAD(quic_engine, ev, data)
   LOG_INFO("QUIC Listening on port %u\n", uip_ntohs(udp_conn->lport));
   LOG_INFO("QUIC ipv6 MTU: %d ttl:%d \n", UIP_LINK_MTU, udp_conn->ttl);
   syncNewData = 0;
+  quic_init_Wegine();
 
 
   while(1) {
