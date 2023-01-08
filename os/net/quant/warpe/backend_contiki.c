@@ -34,12 +34,9 @@
 #include <sys/types.h>
 #endif
 
-#include <netinet/in.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/param.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 #ifndef NDEBUG
 #include <string.h>
@@ -253,7 +250,6 @@ void w_nic_tx(struct w_engine * const w __attribute__((unused))) {}
 ///
 /// @return     Whether any data is ready for reading.
 ///
-
 bool w_nic_rx(struct w_engine * const w, const int64_t nsec)
 {
     return syncNewData > 0;

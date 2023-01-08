@@ -120,6 +120,22 @@ q_connect(struct w_engine * const w,
           const char * const alpn,
           const struct q_conn_conf * const conf);
 
+extern struct q_conn * __attribute__((nonnull(1, 2, 3)))
+q_connect_start(struct w_engine * const w,
+          const quic_endpoint_t * const peer,
+          const char * const peer_name,
+          struct w_iov_sq * const early_data,
+          struct q_stream ** const early_data_stream,
+          const bool fin,
+          const char * const alpn,
+          const struct q_conn_conf * const conf, qstateMachine *estate);
+
+extern void __attribute__((nonnull(1, 2)))
+q_connect_end(struct w_engine * const w,
+                struct q_conn * c,
+                const bool fin,
+                struct q_stream ** const early_data_stream, qstateMachine *estate);
+
 extern void __attribute__((nonnull(1)))
 q_close(struct q_conn * const c, const uint_t code, const char * const reason);
 
@@ -188,9 +204,9 @@ q_peer_closed_stream(const struct q_stream * const s);
 extern bool __attribute__((nonnull))
 q_is_conn_closed(const struct q_conn * const c);
 
-extern bool __attribute__((nonnull)) q_read_stream(struct q_stream * const s,
+extern bool __attribute__((nonnull(1,2))) q_read_stream(struct q_stream * const s,
                                                    struct w_iov_sq * const q,
-                                                   const bool all);
+                                                   const bool all, qstateMachine *estate);
 
 extern bool q_ready(struct w_engine * const w,
                     const uint64_t nsec,

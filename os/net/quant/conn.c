@@ -842,7 +842,7 @@ rx_crypto(struct q_conn * const c, const struct pkt_meta * const m_cur)
         if (c->state == conn_idle || c->state == conn_opng) {
             conn_to_state(c, conn_estb);
             if (is_clnt(c))
-                maybe_api_return(q_connect, c, 0);
+                maybe_api_return(q_connect_end, c, 0);
         }
     }
     if (!is_clnt(c) && c->tx_hshk_done && hshk_done(c) == false)

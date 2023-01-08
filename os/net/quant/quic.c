@@ -232,6 +232,7 @@ struct q_conn * q_connect(struct w_engine * const w,
     //todo:dEE change this to the contiki-ng version and skip this steps
     uint16_t idx = UINT16_MAX;
 
+    return 0;
 #ifdef CONTIKI_NG_LE
 
     if (w->have_ip6)
@@ -312,7 +313,8 @@ struct q_conn * q_connect(struct w_engine * const w,
          wi_ntop(&peer->ipaddr, ip_tmp), p.addr.af == AF_INET6 ? "]" : "",
          uip_ntohs(p.port));
     conn_to_state(c, conn_opng);
-    loop_run(w, (func_ptr)q_connect, c, 0);
+
+    //loop_run(w, (func_ptr)q_connect, c, 0);
     warn(DBG,"----------loop_run done q_connect----");
 
     if (fin && early_data_stream && *early_data_stream &&
@@ -336,6 +338,129 @@ struct q_conn * q_connect(struct w_engine * const w,
     DSTACK_LOG("DSTACK 3" DSTACK_LOG_NEWLINE);
 
     return c;
+}
+
+struct q_conn *q_connect_start(struct w_engine * const w,
+                const quic_endpoint_t * const peer,
+                const char * const peer_name,
+                struct w_iov_sq * const early_data,
+                struct q_stream ** const early_data_stream,
+                const bool fin,
+                const char * const alpn,
+                const struct q_conn_conf * const conf, qstateMachine *estate)
+{
+
+  // use for the first qconnect
+
+  // make new connection
+  struct w_sockaddr p;
+  uint16_t idx = UINT16_MAX;
+
+
+  if (w->have_ip6)
+  {
+    idx = 0;
+    p.port = peer->port;
+    p.addr.af = 10; // AF_INET6
+    memcpy(p.addr.ip6,peer->ipaddr.u8,sizeof(p.addr.ip6));
+
+  }
+
+  if (unlikely(idx == UINT16_MAX)) {
+    warn(CRT, "address family error");
+    return 0;
+  }
+
+
+  struct q_conn * const c = new_conn(w, idx, 0, 0, &p, peer_name, 0, 0, conf);
+
+  // init TLS
+  init_tls(c, peer_name, alpn);
+  init_tp(c);
+
+  // if we have no early data, we're not trying 0-RTT
+  c->try_0rtt &= early_data && early_data_stream;
+
+  warn(WRN,
+       "new %u-RTT %s conn %s to %s%s%s:%u, %" PRIu " byte%s queued for TX",
+       c->try_0rtt ? 0 : 1, conn_type(c), cid_str(c->scid),
+       p.addr.af == AF_INET6 ? "[" : "", wi_ntop(&peer->ipaddr, ip_tmp),
+       p.addr.af == AF_INET6 ? "]" : "", uip_ntohs(p.port),
+       early_data ? w_iov_sq_len(early_data) : 0,
+       plural(early_data ? w_iov_sq_len(early_data) : 0));
+
+  restart_idle_alarm(c);
+
+  warn(DBG,"TLS handshake satrted .......-------------");
+  // start TLS handshake
+  tls_io(c->cstrms[ep_init], 0);
+
+  if (early_data && !sq_empty(early_data)) {
+    assure(early_data_stream, "early data without stream pointer");
+    // queue up early data
+    if (fin)
+      mark_fin(early_data);
+    *early_data_stream = new_stream(c, c->next_sid_bidi);
+    concat_out(*early_data_stream, early_data);
+  } else if (early_data_stream)
+    *early_data_stream = 0;
+
+  timeouts_add(ped(w)->wheel, &c->tx_w, 0);
+
+  warn(DBG, "waiting for connect on %s conn %s to %s%s%s:%u", conn_type(c),
+       cid_str(c->scid), p.addr.af == AF_INET6 ? "[" : "",
+       wi_ntop(&peer->ipaddr, ip_tmp), p.addr.af == AF_INET6 ? "]" : "",
+       uip_ntohs(p.port));
+  conn_to_state(c, conn_opng);
+  //todo: call loop_run at the end with one time tx trigger and yield.
+  // trigger the tx and wait for response.
+  uint16_t est = 0;
+  loop_run(w, (func_ptr)q_connect_start, c, 0,&estate->loop_init,&est);
+  estate->current_state = qconnectstate;
+  estate->conn_state = qCONN_WAIT_PKT;
+  return c;
+}
+
+void q_connect_end(struct w_engine * const w,
+                   struct q_conn * c,
+                   const bool fin,
+                   struct q_stream ** const early_data_stream,
+                   qstateMachine *estate)
+{
+
+  // final part of the qconnect with the loop_run
+  uint16_t sval = 0;
+  loop_run(w, (func_ptr)q_connect_end, c, 0, &estate->loop_init, &sval);
+  if(sval == 0)
+  {
+    return ;
+  }
+
+  estate->current_state = qstreamstate;
+  estate->conn_state = qCONN_DONE;
+  estate->stream_state = qStream_read_first;
+  warn(DBG,"----------loop_run done q_connect----");
+
+  if (fin && early_data_stream && *early_data_stream &&
+      (*early_data_stream)->state != strm_clsd)
+    strm_to_state(*early_data_stream,
+                  (*early_data_stream)->state == strm_hcrm ? strm_clsd
+                                                           : strm_hclo);
+  c->try_0rtt = false;
+
+  if (c->state != conn_estb && c->state != conn_clsg &&
+      c->state != conn_drng) {
+    warn(WRN, "%s conn %s not connected", conn_type(c), cid_str(c->scid));
+    return ;
+  }
+
+  warn(WRN, "%s conn %s connected%s, cipher %s", conn_type(c),
+       cid_str(c->scid), c->did_0rtt ? " after 0-RTT" : "",
+       c->pns[pn_data]
+           .data.out_1rtt[c->pns[pn_data].data.out_kyph]
+           .aead->algo->name);
+  DSTACK_LOG("DSTACK 3" DSTACK_LOG_NEWLINE);
+
 }
 
 
@@ -407,23 +532,28 @@ q_read(struct q_conn * const c, struct w_iov_sq * const q, const bool all)
 {
     struct q_stream * const s = find_ready_strm(&c->strms_by_id, all);
     if (s)
-        q_read_stream(s, q, all);
+        q_read_stream(s, q, all, 0);
     return s;
 }
 
 
 bool q_read_stream(struct q_stream * const s,
                    struct w_iov_sq * const q,
-                   const bool all)
+                   const bool all, qstateMachine *estate)
 {
     struct q_conn * const c = s->c;
+    uint16_t lvals = 0;
 
     if (q_peer_closed_stream(s) == false && all) {
         warn(WRN, "reading all on %s conn %s strm " FMT_SID, conn_type(c),
              cid_str(c->scid), s->id);
-    again:
-        loop_run(c->w, (func_ptr)q_read_stream, c, s);
+    //again:
+        loop_run(c->w, (func_ptr)q_read_stream, c, s, &estate->lstrem_init, &lvals); // fixme dden
         warn(DBG,"----------------q_read_stream---loop_run done");
+    }
+    if(lvals == 0)
+    {
+      return false;
     }
 
     if (sq_empty(&s->in))
@@ -446,7 +576,14 @@ bool q_read_stream(struct q_stream * const s,
     c->have_new_data = sr != 0;
 
     if (all && m_last->is_fin == false)
-        goto again;
+    {
+      estate->current_state = qstreamstate;
+      estate->stream_state = qStream_read_first;
+      return false;
+    }//goto again;
+
+    estate->stream_state = qStream_send;
+    estate->current_state = qstreamstate;
 
     return true;
 }
@@ -528,7 +665,8 @@ struct q_stream * q_rsv_stream(struct q_conn * const c, const bool bidi)
             c->sid_blocked_bidi = true;
         else
             c->sid_blocked_uni = true;
-        loop_run(c->w, (func_ptr)q_rsv_stream, c, 0);
+        //todo: fixme do this for future use in case we want the sensor node to use more streams
+        loop_run(c->w, (func_ptr)q_rsv_stream, c, 0, 0, 0); // fixme dden
         warn(DBG,"-----------max stream ID reached----- loop_run");
     }
 
@@ -735,7 +873,7 @@ void q_close(struct q_conn * const c,
         timeouts_add(ped(c->w)->wheel, &c->tx_w, 0);
     }
 
-    loop_run(c->w, (func_ptr)q_close, c, 0);
+    loop_run(c->w, (func_ptr)q_close, c, 0, 0, 0); // fixme dden
     warn(DBG,"------------q_close---loop_run done");
 
 done:
@@ -976,7 +1114,7 @@ bool q_ready(struct w_engine * const w,
 #ifdef DEBUG_EXTRA
         warn(WRN, "waiting for conn to get ready");
 #endif
-        loop_run(w, (func_ptr)q_ready, 0, 0);
+        loop_run(w, (func_ptr)q_ready, 0, 0, 0, 0); // fixme dden this is only used by the server
     }
 
     if (ready == 0)

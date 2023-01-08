@@ -66,8 +66,9 @@ static void free_sl_head(void)
 
 PROCESS(quic_engine, "QUIC Engine");
 
-void quic_transx_init(void);
-void quic_init_Wegine(void);
+extern void quic_transx_init(void);
+extern void quic_init_Wegine(void);
+extern void qstate_handler();
 
 static struct uip_udp_conn *udp_conn = NULL;
 static quic_udp_callback qreceive = NULL;
@@ -289,6 +290,10 @@ process_data(void)
   syncNewData = syncNewData +1;
   LOG_INFO("  Received Pkt Length: %u ttl: %d \n", uip_datalen(), udp_conn->ttl);
 
+  //Call state handler
+  qstate_handler();
+
+
 #else
 
   LOG_INFO("receiving UDP datagram from [");
@@ -366,13 +371,9 @@ PROCESS_THREAD(quic_engine, ev, data)
 
     if(ev == tcpip_event) {
       if(uip_newdata()) {
-        process_data(); // tood:DEE run loop_run here
+        process_data();
+        //todo: call the state machine handler here
       }
-
-      //todo: DEE loop_run state-machine (new)
-      //todo: create a separate thread for processing all QUIC request.
-      // No AutoStart Process but started on active connection
-      // Using the etimer in the thread
     }
   } /* while (1) */
 

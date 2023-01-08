@@ -27,6 +27,36 @@ typedef struct {
 } quic_endpoint_t;
 #endif /* QUIC_ENDPOINT_CUSTOM */
 
+typedef enum {
+  qCONN_Init,      /* Start a new connection */
+  qCONN_WAIT_PKT,  /* Waiting for udp packet */
+  qCONN_ERROR,     /* Error in the qconnect*/
+  qCONN_DONE,      /* we have an active connection */
+  qCONN_UNK       //NO fucking idea
+} qconn_st;
+
+typedef enum {
+  qStream_read_first,      /* read from fist connection */
+  qStream_read,  /* Waiting for udp packet */
+  qStream_send,     /* send new stream req on qconnect*/
+} qstream_st;
+
+typedef enum {
+  qconnectstate,      /* Start a new connection */
+  qstreamstate,  /* Waiting for udp packet */
+  qkill_conn,
+  qunknow,
+
+} qstate;
+
+typedef struct {
+  qstate current_state;
+  qconn_st conn_state;
+  qstream_st stream_state;
+  uint16_t loop_init;
+  uint16_t lstrem_init;
+} qstateMachine;
+
 /** Simple UDP Callback function type. */
 typedef void (* quic_udp_callback)(const quic_endpoint_t *src,
                                   uint8_t *payload, uint16_t payload_length);

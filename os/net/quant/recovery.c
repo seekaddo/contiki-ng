@@ -805,7 +805,7 @@ void on_pkt_acked(struct w_iov * const v, struct pkt_meta * m)
                 strm_to_state(s, s->state == strm_hcrm ? strm_clsd : strm_hclo);
             }
             if (c->did_0rtt)
-                maybe_api_return(q_connect, c, 0);
+                maybe_api_return(q_connect_end, c, 0);
         }
 
     } else

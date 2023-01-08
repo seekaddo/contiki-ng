@@ -68,44 +68,65 @@ void loop_init(void)
 void __attribute__((nonnull(1))) loop_run(struct w_engine * const w,
                                           const func_ptr f,
                                           struct q_conn * const c,
-                                          struct q_stream * const s)
+                                          struct q_stream * const s,
+                                          uint16_t *llinit,
+                                          uint16_t *state
+                                          )
 {
     assure(api_func == 0, "other API call active");
     api_func = f;
     api_conn = c;
     api_strm = s;
-    break_loop = false;
+    *state = 0;
     warn(DBG,"---------Socket loop RECVMG-----------------");
-
-    while (likely(break_loop == false)) {
-        timeouts_update(ped(w)->wheel, w_now(CLOCK_MONOTONIC_RAW));
-
-        struct timeout * t;
-        while ((t = timeouts_get(ped(w)->wheel)) != 0)
-            (*t->callback.fn)(t->callback.arg);
-
-        if (unlikely(break_loop))
-            break;
-
-        const uint64_t next = timeouts_timeout(ped(w)->wheel);
-        assure(next, "next is null");
-
-        if (w_nic_rx(w, (int64_t)next) == false) // how many is ready
-            continue;
-
-        struct w_sock_slist sl = w_sock_slist_initializer(sl);
-        if (w_rx_ready(w, &sl) == 0) // fill in socket epoll data
-            continue;
-
-        // this actually matters
-        timeouts_update(ped(w)->wheel, w_now(CLOCK_MONOTONIC_RAW));
-
-        struct w_sock * ws;
-        sl_foreach (ws, &sl, next)
-            rx(ws);
+    if(llinit == NULL)
+    {
+      warn(DBG,"---------loop_run call with null llinit-----------------");
+      return ;
     }
 
-    api_func = 0;
-    api_conn = api_strm = 0;
-    warn(DBG,"---------Socket loop done-----------------");
+    //while (likely(break_loop == false)) {
+    if (*llinit == 0) {
+      timeouts_update(ped(w)->wheel, w_now(CLOCK_MONOTONIC_RAW));
+
+      struct timeout *t;
+      while ((t = timeouts_get(ped(w)->wheel)) != 0)
+        (*t->callback.fn)(t->callback.arg);
+
+      break_loop = false;
+      *llinit = 1;
+      return ;
+    }
+    else {
+      const uint64_t next = timeouts_timeout(ped(w)->wheel);
+      assure(next, "next is null"); // ------------------------------------------ run up to this and yield
+      if (w_nic_rx(w, (int64_t)next) == false) // how many is ready
+      {
+        *state = 0;
+        return ;
+      }
+
+      struct w_sock_slist sl = w_sock_slist_initializer(sl);
+      if (w_rx_ready(w, &sl) == 0) // fill in socket epoll data
+      {
+        *state = 0;
+        return ;
+      }
+
+      // this actually matters
+      timeouts_update(ped(w)->wheel, w_now(CLOCK_MONOTONIC_RAW));
+
+      struct w_sock *ws;
+      sl_foreach(ws, &sl, next)
+          rx(ws);
+    }
+   // }
+
+    if (unlikely(break_loop)) {
+      *state = 1;
+
+      api_func = 0;
+      api_conn = api_strm = 0;
+      warn(DBG, "---------Socket loop done-----------------");
+    }
 }

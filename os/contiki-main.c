@@ -56,7 +56,9 @@
 #include "services/shell/serial-shell.h"
 #include "services/simple-energest/simple-energest.h"
 #include "services/tsch-cs/tsch-cs.h"
+#ifdef BUILD_WITH_QUIC
 #include "quic-ietf.h"
+#endif
 
 #include <stdio.h>
 #include <stdint.h>

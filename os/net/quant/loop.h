@@ -50,7 +50,10 @@ extern void loop_break(void);
 extern void __attribute__((nonnull(1))) loop_run(struct w_engine * const w,
                                                  const func_ptr f,
                                                  struct q_conn * const c,
-                                                 struct q_stream * const s);
+                                                 struct q_stream * const s,
+                                                 uint16_t *llinit,
+                                                 uint16_t *state
+                                                 );
 
 
 // see https://stackoverflow.com/a/45600545/2240756

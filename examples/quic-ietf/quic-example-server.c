@@ -52,7 +52,7 @@ quic_rx_callback(const quic_endpoint_t *src,
   /* send back the same string to the client as an echo reply */
   LOG_INFO("Sending response.\n");
   (void ) src;
-  quic_transx("/index.html","fe80::fb8c:3998:452a:d27e",quic_rx_callback);
+  quic_streeam("/index.html",quic_rx_callback); // put this in a timer
 
 }
 
