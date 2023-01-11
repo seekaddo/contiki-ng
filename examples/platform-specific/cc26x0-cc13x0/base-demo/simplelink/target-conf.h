@@ -31,6 +31,11 @@
 /*---------------------------------------------------------------------------*/
 #ifndef TARGET_CONF_H_
 #define TARGET_CONF_H_
+/* Platform-specific includes */
+#include "rf/ble-beacond.h"
+#ifndef BOARD_STRING
+#define BOARD_STRING "TI CC2650 LaunchPad"
+#endif
 /*---------------------------------------------------------------------------*/
 /* Platform-specific example configuration */
 #define CC26XX_DEMO_TRIGGER_1       BUTTON_HAL_ID_KEY_LEFT
