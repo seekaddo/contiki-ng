@@ -470,7 +470,7 @@ input(void)
   uint8_t *data = (uint8_t *)packetbuf_dataptr();
   uint16_t len = packetbuf_datalen();
   uint8_t frame_type = packetbuf_attr(PACKETBUF_ATTR_FRAME_TYPE);
-  uint16_t channel_id;
+  uint16_t channel_id = 0;
   l2cap_channel_t *channel;
   uint16_t credits;
 

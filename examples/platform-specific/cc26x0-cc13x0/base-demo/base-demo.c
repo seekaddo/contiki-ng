@@ -307,10 +307,10 @@ get_sync_sensor_readings(void)
   printf("-----------------------------------------\n");
 
   value = batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP);
-  printf("Bat: Temp=%d C\n", value);
+  printf("Bat: Temp=%d C\r\n", value);
 
   value = batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT);
-  printf("Bat: Volt=%d mV\n", (value * 125) >> 5);
+  printf("Bat: Volt=%d mV\r\n", (value * 125) >> 5);
 
 #if BOARD_SMARTRF06EB
   SENSORS_ACTIVATE(als_sensor);
@@ -348,14 +348,16 @@ PROCESS_THREAD(base_demo_process, ev, data)
 
   PROCESS_BEGIN();
 
-  printf("CC13xx/CC26xx base demo\n");
+  printf("CC13xx/CC26xx base demo\r\n");
+
 
   init_sensors();
 
-#if CONTIKI_TARGET_CC26X0_CC13X0
+#if CONTIKI_TARGET_CC26X0_CC13X0 || CONTIKI_TARGET_SIMPLELINK
   /* Init the BLE advertisement daemon */
   rf_ble_beacond_config(0, BOARD_STRING);
   rf_ble_beacond_start();
+  printf("BLE_AD_NAME: %s \r\n", BOARD_STRING);
 #endif
 
   etimer_set(&et, CC26XX_DEMO_LOOP_INTERVAL);
@@ -377,13 +379,13 @@ PROCESS_THREAD(base_demo_process, ev, data)
     } else if(ev == button_hal_periodic_event) {
       button_hal_button_t *button = data;
 
-      printf("%s periodic event, duration %d seconds\n",
+      printf("%s periodic event, duration %d seconds\r\n",
              BUTTON_HAL_GET_DESCRIPTION(button),
              button->press_duration_seconds);
     } else if(ev == button_hal_press_event) {
       button_hal_button_t *btn = (button_hal_button_t *)data;
 
-      printf("%s press event\n", BUTTON_HAL_GET_DESCRIPTION(btn));
+      printf("%s press event\r\n", BUTTON_HAL_GET_DESCRIPTION(btn));
 #if BOARD_SENSORTAG
       if(btn->unique_id == CC26XX_DEMO_TRIGGER_3) {
         buzzer_start(1000);
@@ -392,7 +394,7 @@ PROCESS_THREAD(base_demo_process, ev, data)
     } else if(ev == button_hal_release_event) {
       button_hal_button_t *btn = (button_hal_button_t *)data;
 
-      printf("%s release event\n", BUTTON_HAL_GET_DESCRIPTION(btn));
+      printf("%s release event\r\n", BUTTON_HAL_GET_DESCRIPTION(btn));
 
       if(btn->unique_id == CC26XX_DEMO_TRIGGER_1) {
         leds_toggle(CC26XX_DEMO_LEDS_BUTTON);
