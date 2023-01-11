@@ -38,6 +38,8 @@
 #define IEEE802154_CONF_PANID            0xABCD
 #define IEEE802154_CONF_DEFAULT_CHANNEL      25
 #define RF_BLE_CONF_ENABLED                   1
+#define RF_CONF_MODE    RF_MODE_2_4_GHZ
+#define RF_CONF_BLE_BEACON_ENABLE             1
 /*---------------------------------------------------------------------------*/
 #endif /* PROJECT_CONF_H_ */
 /*---------------------------------------------------------------------------*/
